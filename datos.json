@@ -1,0 +1,12 @@
+[
+  {"nombre": "Yeinis", "matricula": "S2001", "carrera": "Sistemas"},
+  {"nombre": "Carlos", "matricula": "S2002", "carrera": "Sistemas"},
+  {"nombre": "Ana", "matricula": "S2003", "carrera": "Sistemas"},
+  {"nombre": "Luis", "matricula": "S2004", "carrera": "Sistemas"},
+  {"nombre": "Maria", "matricula": "S2005", "carrera": "Sistemas"},
+  {"nombre": "Jorge", "matricula": "S2006", "carrera": "Sistemas"},
+  {"nombre": "Sofia", "matricula": "S2007", "carrera": "Sistemas"},
+  {"nombre": "Pedro", "matricula": "S2008", "carrera": "Sistemas"},
+  {"nombre": "Laura", "matricula": "S2009", "carrera": "Sistemas"},
+  {"nombre": "Miguel", "matricula": "S2010", "carrera": "Sistemas"}
+]

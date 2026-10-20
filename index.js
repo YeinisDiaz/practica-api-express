@@ -1,80 +1,63 @@
-const express = require('express');
-const mysql = require('mysql2/promise');
-const cors = require('cors'); // <-- AGREGADO
 require('dotenv').config();
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const csv = require('csv-parser');
+const { Parser } = require('json2csv');
+const mysql = require('mysql2/promise');
+const path = require('path');
 
 const app = express();
-const PORT = 3000;
-
-app.use(cors()); // <-- AGREGADO
 app.use(express.json());
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'api_practica',
-  waitForConnections: true,
-  connectionLimit: 10
+const db = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME
 });
 
-pool.getConnection()
-.then(conn => {
-    console.log("Conectado exitosamente a la base de datos");
-    conn.release();
-  })
-.catch(err => console.error("Error de conexión:", err));
+const upload = multer({ dest: 'uploads/' });
 
-app.get('/', (req, res) => {
-  res.send('Servidor en línea - API REST funcionando correctamente');
-});
-
-app.get('/api/recursos', async (req, res) => {
+app.post('/api/recursos/importar', upload.single('archivo'), async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM libros');
-    res.status(200).json(rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const filePath = req.file.path;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let datos = [];
+
+    if (ext === '.json') {
+      datos = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } else {
+      await new Promise((resolv, rej) => {
+        fs.createReadStream(filePath).pipe(csv())
+          .on('data', d => datos.push(d))
+          .on('end', resolv).on('error', rej);
+      });
+    }
+
+    for (const d of datos) {
+      await db.query('INSERT INTO alumnos (nombre, matricula, carrera) VALUES (?, ?, ?)', [d.nombre, d.matricula, d.carrera]);
+    }
+
+    fs.unlinkSync(filePath);
+    res.json({ mensaje: 'Importado', total: datos.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
-app.get('/api/recursos/:id', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT * FROM libros WHERE id =?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ mensaje: "Recurso no encontrado" });
-    res.json(rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+app.get('/api/recursos/exportar/:formato', async (req, res) => {
+  const [rows] = await db.query('SELECT * FROM alumnos');
+  if (req.params.formato === 'json') {
+    res.setHeader('Content-Disposition', 'attachment; filename=datos_exportados.json');
+    return res.json(rows);
+  } else {
+    const parser = new Parser();
+    const csvData = parser.parse(rows);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=datos_exportados.csv');
+    return res.send(csvData);
   }
 });
 
-app.post('/api/recursos', async (req, res) => {
-  try {
-    const { nombre, autor, anio } = req.body;
-    const [result] = await pool.query('INSERT INTO libros (nombre, autor, anio) VALUES (?,?,?)', [nombre, autor, anio]);
-    res.status(201).json({ id: result.insertId, nombre, autor, anio });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put('/api/recursos/:id', async (req, res) => {
-  try {
-    const { nombre, autor, anio } = req.body;
-    await pool.query('UPDATE libros SET nombre=?, autor=?, anio=? WHERE id=?', [nombre, autor, anio, req.params.id]);
-    res.json({ mensaje: "Recurso actualizado correctamente" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete('/api/recursos/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM libros WHERE id=?', [req.params.id]);
-    res.json({ mensaje: "Recurso eliminado correctamente" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.listen(PORT, () => console.log(`Servidor en http://localhost:${PORT}`));
+app.listen(3000, () => console.log('Servidor en http://localhost:3000'));
